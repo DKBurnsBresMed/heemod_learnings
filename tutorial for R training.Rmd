@@ -1,0 +1,98 @@
+---
+title: "replication of VEMT in HEEMOD"
+author: "Darren Burns"
+date: "7 December 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#this chunk runs whenever you run another chunk, so don't overload it with data
+knitr::opts_chunk$set()
+```
+
+
+# Introduction
+
+This document runs through converting a fairly simple partitioned-survival model into a *heemod* powered variant. This package is likely to become accepted by NICE in the future, and should allow much easier compilation of CE models.
+
+## How to set up a model in heemod
+As R works in a different way than excel, things can be separated out into objects. These objects can be PLD, regression results, lists containing a whole hierarchical substructures of data, images, anything!  
+
+This allows a very powerful and extremely easy to QC way of working. For instance, the regression analysis to extrapolate survival curves can be stored as an object and either the parameters or extrapolations themselves can be called directly, limiting the scope for human error.  
+
+Let's look at an example, using some example data from the survival package:  
+
+
+```{r preamble and loading example data}
+#function which automates package loading and installation - inspiration from the AER book (advanced econometrics with R)
+dbloader <- function(packs) {
+  system.time(
+    if (length(setdiff(packs, rownames(installed.packages()))) > 0) {
+      print("you need the following packages to run this script")
+      print(setdiff(packs, rownames(installed.packages())))
+      print("Installing them now...")
+      install.packages(setdiff(packs, rownames(installed.packages())))
+      print("Now loading libraries...")
+      sapply(packs, require, character.only = TRUE)
+      } else {
+        print("All packages are installed already")
+        print("Loading the specified libraries...")
+        sapply(packs, require, character.only = TRUE)
+        }
+    )
+}
+
+#load/install packages
+dbloader(c("flexsurv","tidyverse","survminer"))
+
+# load an example dataset on ovarian cancer
+surv_examp_data <- ovarian
+
+```
+
+
+Now that we have the data, we will run a suite of simple flexsurv extrapolations on it. We follow a simmple process:  
+
+1. Set up an object for time, and another for event
+2. set up the model specification - in this case covariate unadjusted for a single arm (for simplicity). Set it up as a string and then tell R that it's actually a formula
+3. generate a list containing the regression results for the 6 standard curves
+
+
+```{r perform flexsurvreg for all curves}
+
+#set up problem
+# t <- surv_examp_data$futime
+# e <- surv_examp_data$fustat
+survreg_formula <- Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ 1
+#survreg_formula <- as.formula(survreg_formula)
+#run regs, compiling as a list. See the help page for flexsurv for more details!
+models <- list(
+  exponential  = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "exponential"),
+  weibull      = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "weibull"),
+  log_logistic = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "llogis"),
+  log_normal   = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "lnorm"),
+  gompertz     = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "gompertz"),
+  gen_gamma    = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "gengamma")
+)
+
+
+#as an example, we can pull out the exponential regression like this:
+```
+
+Now we have completed our fitting of survival curves. It can be a pain to set up a nice graph
+
+```{r}
+# fit <- flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ 1,data = surv_examp_data,dist = "exponential")
+#This function is actually more useful for grabbing the number at risk!
+list_of_plots <- list(
+  exponential = survminer::ggflexsurvplot(fit = models$exponential, risk.table=TRUE,conf.int = FALSE),
+  weibull = survminer::ggflexsurvplot(fit = models$weibull, risk.table=TRUE,conf.int = FALSE),
+  log_logistic = survminer::ggflexsurvplot(fit = models$log_logistic, risk.table=TRUE,conf.int = FALSE),
+  log_normal = survminer::ggflexsurvplot(fit = models$log_normal, risk.table=TRUE,conf.int = FALSE),
+  gompertz = survminer::ggflexsurvplot(fit = models$gompertz, risk.table=TRUE,conf.int = FALSE),
+  gen_gamma = survminer::ggflexsurvplot(fit = models$gen_gamma, risk.table=TRUE,conf.int = FALSE)
+)
+
+arrange_ggsurvplots(list_of_plots)  
+
+```
