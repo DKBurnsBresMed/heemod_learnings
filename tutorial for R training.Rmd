@@ -46,7 +46,8 @@ dbloader <- function(packs) {
 dbloader(c("flexsurv","tidyverse","survminer"))
 
 # load an example dataset on ovarian cancer
-surv_examp_data <- ovarian
+surv_examp_data <- read.csv("example_data/Case 1 Dataset 40 Months.csv")
+
 
 ```
 
@@ -59,40 +60,74 @@ Now that we have the data, we will run a suite of simple flexsurv extrapolations
 
 
 ```{r perform flexsurvreg for all curves}
-
-#set up problem
-# t <- surv_examp_data$futime
-# e <- surv_examp_data$fustat
-survreg_formula <- Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ 1
-#survreg_formula <- as.formula(survreg_formula)
 #run regs, compiling as a list. See the help page for flexsurv for more details!
 models <- list(
-  exponential  = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "exponential"),
-  weibull      = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "weibull"),
-  log_logistic = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "llogis"),
-  log_normal   = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "lnorm"),
-  gompertz     = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "gompertz"),
-  gen_gamma    = flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ as.factor(surv_examp_data$ecog.ps),data = surv_examp_data,dist = "gengamma")
-)
-
+  exponential  = flexsurvreg(
+    formula = Surv(surv_examp_data$COSTime, surv_examp_data$COSEvent) ~ as.factor(surv_examp_data$ARM),
+    data = surv_examp_data,
+    dist = "exponential"
+    ),
+  weibull      = flexsurvreg(
+    formula = Surv(surv_examp_data$COSTime, surv_examp_data$COSEvent) ~ as.factor(surv_examp_data$ARM),
+    data = surv_examp_data,
+    dist = "weibull"
+    ),
+  log_logistic = flexsurvreg(
+    formula = Surv(surv_examp_data$COSTime, surv_examp_data$COSEvent) ~ as.factor(surv_examp_data$ARM),
+    data = surv_examp_data,
+    dist = "llogis"
+    ),
+  log_normal   = flexsurvreg(
+    formula = Surv(surv_examp_data$COSTime, surv_examp_data$COSEvent) ~ as.factor(surv_examp_data$ARM),
+    data = surv_examp_data,
+    dist = "lnorm"
+    ),
+  gompertz     = flexsurvreg(
+    formula = Surv(surv_examp_data$COSTime, surv_examp_data$COSEvent) ~ as.factor(surv_examp_data$ARM),
+    data = surv_examp_data,
+    dist = "gompertz"
+    ),
+  gen_gamma    = flexsurvreg(
+    formula = Surv(surv_examp_data$COSTime, surv_examp_data$COSEvent) ~ as.factor(surv_examp_data$ARM),
+    data = surv_examp_data,
+    dist = "gengamma"
+    )
+  )
+  
 
 #as an example, we can pull out the exponential regression like this:
 ```
 
-Now we have completed our fitting of survival curves. It can be a pain to set up a nice graph
+Now we have completed our fitting of survival curves. It can be a pain to set up a nice graph. One quick function to generate extrapolations is used here
 
-```{r}
-# fit <- flexsurvreg(Surv(surv_examp_data$futime, surv_examp_data$fustat) ~ 1,data = surv_examp_data,dist = "exponential")
-#This function is actually more useful for grabbing the number at risk!
-list_of_plots <- list(
-  exponential = survminer::ggflexsurvplot(fit = models$exponential, risk.table=TRUE,conf.int = FALSE),
-  weibull = survminer::ggflexsurvplot(fit = models$weibull, risk.table=TRUE,conf.int = FALSE),
-  log_logistic = survminer::ggflexsurvplot(fit = models$log_logistic, risk.table=TRUE,conf.int = FALSE),
-  log_normal = survminer::ggflexsurvplot(fit = models$log_normal, risk.table=TRUE,conf.int = FALSE),
-  gompertz = survminer::ggflexsurvplot(fit = models$gompertz, risk.table=TRUE,conf.int = FALSE),
-  gen_gamma = survminer::ggflexsurvplot(fit = models$gen_gamma, risk.table=TRUE,conf.int = FALSE)
-)
+```{r extrapolations}
+extrapolate_models <- function(models,time_steps){
+  out <- rbind(
+    exponential  = cbind(Model = rep("Exponential",length(time_steps))      ,summary(models$exponential ,t=time_steps,ci=FALSE,tidy = TRUE)),
+    weibull      = cbind(Model = rep("weibull",length(time_steps))          ,summary(models$weibull     ,t=time_steps,ci=FALSE,tidy = TRUE)),
+    log_logistic = cbind(Model = rep("Log-logistic",length(time_steps))     ,summary(models$log_logistic,t=time_steps,ci=FALSE,tidy = TRUE)),
+    log_normal   = cbind(Model = rep("log-normal",length(time_steps))       ,summary(models$log_normal  ,t=time_steps,ci=FALSE,tidy = TRUE)),
+    gompertz     = cbind(Model = rep("Gompertz",length(time_steps))         ,summary(models$gompertz    ,t=time_steps,ci=FALSE,tidy = TRUE)),
+    gen_gamma    = cbind(Model = rep("Generalised gamma",length(time_steps)),summary(models$gen_gamma   ,t=time_steps,ci=FALSE,tidy = TRUE))
+    )
+  return(out)
+}
 
-arrange_ggsurvplots(list_of_plots)  
+output_extrp <- extrapolate_models(models,0:100)
+
+output_extrp %>%
+ggplot(aes(x = time, y = est, colour = Model, linetype = `as.factor(surv_examp_data$ARM)`)) + 
+  geom_line() + 
+  theme_classic() +
+  scale_x_continuous(limits = c(0, max(0:100)),
+                     expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 1), expand = expand_scale(mult = c(0, .05)),labels = scales::percent) +
+  theme(legend.position="bottom",
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold")) +
+  scale_colour_manual(values = c("black", "red", "blue", "green", "orange", "purple", "brown")) +
+  scale_size_manual(values = c(1.5,0.5,0.5,0.5,0.5,0.5,0.5)) +
+  labs(x = "t", y = "S(t)")
+
 
 ```
